@@ -29,9 +29,52 @@ update_plot(current_price)
 # Fixed spread for market maker (simulates liquidity)
 spread = 0.5  # 0.5% spread
 
-# Initial bid and ask
-current_bid = current_price * (1 - spread / 200)  # Divide by 200 for percentage/2
+# Order book dictionaries to store bids and asks
+# Structure: {price: [quantity, timestamp, filled_status]}
+order_book_bids = {}  # Higher price = better bid
+order_book_asks = {}  # Lower price = better ask
+
+# Function to add order to book
+def add_to_order_book(is_buy, price, quantity=1):
+    if is_buy:
+        order_book_bids[price] = [quantity, time.time(), False]
+    else:
+        order_book_asks[price] = [quantity, time.time(), False]
+
+# Function to match and execute trades
+def match_orders():
+    global current_price, current_bid, current_ask
+    while order_book_bids and order_book_asks and max(order_book_bids.keys()) >= min(order_book_asks.keys()):
+        best_bid = max(order_book_bids.keys())
+        best_ask = min(order_book_asks.keys())
+        if best_bid >= best_ask:
+            trade_price = best_ask  # Trade at the ask price (seller's perspective)
+            current_price = trade_price
+
+            # Update quantities and remove filled orders
+            if order_book_bids[best_bid][0] > 1:
+                order_book_bids[best_bid][0] -= 1
+            else:
+                del order_book_bids[best_bid]
+
+            if order_book_asks[best_ask][0] > 1:
+                order_book_asks[best_ask][0] -= 1
+            else:
+                del order_book_asks[best_ask]
+
+            update_plot(current_price)
+
+            # Reset market maker bid/ask
+            current_bid = current_price * (1 - spread / 200)
+            current_ask = current_price * (1 + spread / 200)
+            add_to_order_book(True, current_bid)
+            add_to_order_book(False, current_ask)
+
+# Initial bid and ask from market maker
+current_bid = current_price * (1 - spread / 200)
 current_ask = current_price * (1 + spread / 200)
+add_to_order_book(True, current_bid)
+add_to_order_book(False, current_ask)
 
 while True:
     # Randomly decide if incoming order is a buy (bid) or sell (ask)
@@ -40,47 +83,35 @@ while True:
     # Randomly decide if it's flexible (market order) or fixed (limit order)
     is_flexible = random.choice([True, False])
 
-    trade_occurred = False
-    trade_price = None
-
     if is_flexible:
         # Flexible: Market order, hits the current best opposite side
-        if is_buy:
-            trade_price = current_ask
+        if is_buy and order_book_asks:
+            best_ask = min(order_book_asks.keys())
+            if order_book_asks[best_ask][0] > 1:
+                order_book_asks[best_ask][0] -= 1
+            else:
+                del order_book_asks[best_ask]
+            trade_price = best_ask
+        elif not is_buy and order_book_bids:
+            best_bid = max(order_book_bids.keys())
+            if order_book_bids[best_bid][0] > 1:
+                order_book_bids[best_bid][0] -= 1
+            else:
+                del order_book_bids[best_bid]
+            trade_price = best_bid
         else:
-            trade_price = current_bid
-        trade_occurred = True
+            continue  # No opposite orders to match
     else:
         # Fixed: Limit order within 1% of current market price
         deviation = random.uniform(-0.01, 0.01)
         order_price = current_price * (1 + deviation)
+        add_to_order_book(is_buy, order_price)
+        match_orders()
+        continue  # Match_orders handles trade and price update
 
-        # Check if it crosses the book (hits the opposite side)
-        if is_buy and order_price >= current_ask:
-            trade_price = current_ask
-            trade_occurred = True
-        elif not is_buy and order_price <= current_bid:
-            trade_price = current_bid
-            trade_occurred = True
-        else:
-            # Doesn't cross, add to the book and improve bid/ask if better
-            if is_buy:
-                if order_price > current_bid:
-                    current_bid = order_price
-            else:
-                if order_price < current_ask:
-                    current_ask = order_price
-
-    if trade_occurred:
-        # Update market price to the trade price
+    if 'trade_price' in locals():
         current_price = trade_price
-
-        # Reset bid/ask around new price (simulates market maker replenishing liquidity)
-        current_bid = current_price * (1 - spread / 200)
-        current_ask = current_price * (1 + spread / 200)
-
-        # Update the plot
         update_plot(current_price)
 
-    # Delay to simulate time between orders (adjust as needed)
+    # Delay to simulate time between orders
     time.sleep(0.1)
