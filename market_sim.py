@@ -8,23 +8,15 @@ plt.ion()
 # Create figure and axis
 fig = plt.figure()
 ax = fig.add_subplot(111)
+ax.set_xlabel('Time Step')
+ax.set_ylabel('Price (Arbitrary Units)')
 
 # Initial data
 prices = []
-line, = ax.plot([], [], 'b-')  # Blue line for price
+line, = ax.plot([], [], 'b-', label='Market Price')  # Blue line for price
+low_ask_line, = ax.plot([], [], 'g--', label='Lowest Ask')  # Green dashed line for lowest ask
+high_bid_line, = ax.plot([], [], 'r--', label='Highest Bid')  # Red dashed line for highest bid
 
-def update_plot(new_price):
-    prices.append(new_price)
-    line.set_xdata(range(len(prices)))
-    line.set_ydata(prices)
-    ax.relim()
-    ax.autoscale_view()
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-
-# Initial market price
-current_price = 100.0
-update_plot(current_price)
 
 # Fixed spread for market maker (simulates liquidity)
 spread = 0.5  # 0.5% spread
@@ -33,6 +25,44 @@ spread = 0.5  # 0.5% spread
 # Structure: {price: [quantity, timestamp, filled_status]}
 order_book_bids = {}  # Higher price = better bid
 order_book_asks = {}  # Lower price = better ask
+
+def update_plot(new_price):
+    prices.append(new_price)
+    line.set_xdata(range(len(prices)))
+    line.set_ydata(prices)
+    
+    # Update bid/ask line
+    if order_book_bids and order_book_asks:
+        highest_bid = max(order_book_bids.keys())
+        lowest_ask = min(order_book_asks.keys())
+        low_ask_line.set_xdata([0, len(prices)-1])
+        high_bid_line.set_xdata([0, len(prices)-1])
+        low_ask_line.set_ydata([lowest_ask, lowest_ask])
+        high_bid_line.set_ydata([highest_bid, highest_bid])
+    elif order_book_bids:
+        highest_bid = max(order_book_bids.keys())
+        high_bid_line.set_xdata([0, len(prices)-1])
+        high_bid_line.set_ydata([highest_bid, highest_bid])
+    elif order_book_asks:
+        lowest_ask = min(order_book_asks.keys())
+        low_ask_line.set_xdata([0, len(prices)-1])
+        low_ask_line.set_ydata([lowest_ask, lowest_ask])
+    else:
+        low_ask_line.set_xdata([])
+        high_bid_line.set_xdata([])
+        low_ask_line.set_ydata([])
+        high_bid_line.set_ydata([])
+
+    ax.relim()
+    ax.autoscale_view()
+    ax.legend()
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+
+
+# Initial market price
+current_price = 100.0
+update_plot(current_price)
 
 # Function to add order to book
 def add_to_order_book(is_buy, price, quantity=1):
