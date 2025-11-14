@@ -7,9 +7,10 @@ This simulator sets a starting market price and at each 'tick' or timestep, a ra
 
 Low points and high points in the market price were capped by the highest bid price and the lowest ask price. 
 
+
 ## Future Work
 
-Currently looking into Brownian Motion.
+Currently looking into Brownian Motion in rust.
 
 ## Use
 
